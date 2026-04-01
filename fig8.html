@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wetness Class - gleying within 40cm</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f2f5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    color: #222;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    text-align: center;
+    color: #1a1a2e;
+  }
+  .subtitle {
+    font-size: 0.82rem;
+    color: #666;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.10);
+    padding: 20px 24px;
+    width: 100%;
+    max-width: 860px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+  }
+
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .input-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #444;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .input-group input[type=number] {
+    width: 140px;
+    padding: 9px 12px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1a1a2e;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-group input[type=number]:focus {
+    border-color: #4a90d9;
+  }
+
+  .input-group input[type=range] {
+    width: 220px;
+    accent-color: #4a90d9;
+    cursor: pointer;
+  }
+
+  .result-badge {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    min-width: 200px;
+    text-align: center;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+  }
+
+  svg#chart {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: #444;
+  }
+  .legend-swatch {
+    width: 18px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+
+  .hint {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 12px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Wetness Class - gleying within 40cm</h1>
+<p class="subtitle">Enter FCD and SPL depth values to identify the Wetness Class</p>
+
+<div class="card">
+
+  <div class="controls">
+    <div class="input-group">
+      <label>FCD (days)</label>
+      <input type="number" id="fcdInput" min="60" max="330" value="150" step="5">
+      <input type="range"  id="fcdSlider" min="60" max="330" value="150" step="5">
+    </div>
+    <div class="input-group">
+      <label>Depth to slowly permeable layer (cm)</label>
+      <input type="number" id="depthInput" min="0" max="80" value="50" step="1">
+      <input type="range"  id="depthSlider" min="0" max="80" value="50" step="1">
+    </div>
+    <div id="resultBadge" class="result-badge">—</div>
+  </div>
+
+  <!-- ── SVG CHART ─────────────────────────────────────────────── -->
+  <!-- Plot area: x 90–770, y 60–460  (680×400 px inside 800×520 viewBox) -->
+  <!-- x = 90 + (FCD-50)*(680/280)   y = 60 + depth*(400/80) -->
+  <svg id="chart" viewBox="0 0 800 520" xmlns="http://www.w3.org/2000/svg" font-family="Arial,sans-serif">
+
+    <!-- Background -->
+    <rect width="800" height="520" fill="#f8f8f8"/>
+    <rect x="90" y="60" width="680" height="400" fill="white"/>
+
+    <!-- WC fills -->
+    <!--
+      Coordinate system:  x = 90 + (FCD-50)*(680/280),  y = 60 + depth*5
+      Boundary lines:
+         III/IV boundary : depth = 0.2727272727 * FCD - 0.4545454545
+           → Clipped to depth>=35: SVG (284.3,235)→(685,460)  [FCD=130 to FCD=295]
+         II/III boundary : depth = 0.2857142857 * FCD + 25.712857
+           → SVG (90,260)→(430,460)   [FCD=50,depth=40 to FCD=190,depth=80]
+         Right diag IV/V : FCD 225→330, depth 25→40  → SVG (515,185)→(770,260)
+         Horiz threshold : depth=35  → y=235
+         Vert threshold  : FCD=225   → x=515
+    -->
+    <!-- Above threshold (purple): FCD<225, depth<35 -->
+    <polygon id="fill_above" points="90,60 515,60 515,235 90,235" fill="rgba(150,100,200,0.13)"/>
+    <!-- WC V (green): FCD>=225, above right diag (515,185)→(770,260) -->
+    <polygon id="fill_v"     points="515,60 770,60 770,260 515,185" fill="rgba(60,170,80,0.13)"/>
+    <!-- WC II (red): below II/III line, left portion (bottom-left of lower diagonal)
+         II/III goes (90,260)→(430,460); WC II is left/below this line
+         Shape: left edge (90,260)→(90,460), bottom to (430,460), up II/III to (90,260) -->
+    <polygon id="fill_ii"    points="90,260 90,460 430,460" fill="rgba(200,80,80,0.13)"/>
+    <!-- WC III (amber): between II/III line and III/IV line, depth>=35
+         Top/right boundary: III/IV clipped line (284.3,235)→(685,460)
+         Bottom/left boundary: II/III line (90,260)→(430,460)
+         Left edge at FCD=50 (x=90): depth 35-40 (y=235 to y=260)
+         Shape: (90,235)→(284.3,235)→(685,460)→(430,460)→(90,260)→(90,235) -->
+    <polygon id="fill_iii"   points="90,235 284.3,235 685,460 430,460 90,260" fill="rgba(220,150,40,0.13)"/>
+    <!-- WC IV left (blue): right of III/IV line, depth>=35, FCD<225
+         III/IV at FCD=225 (x=515): depth=60.91, y=364.5
+         Shape: (284.3,235)→(515,235)→(515,364.5)→(685,460)→(284.3,235) — triangle-ish
+         But also need right part from (515,364.5) down to (515,460) and along bottom
+         Full left IV: (284.3,235)→(515,235)→(515,460)→(685,460) back along III/IV to (284.3,235) -->
+    <polygon id="fill_iv_l"  points="284.3,235 515,235 515,460 685,460" fill="rgba(60,130,210,0.13)"/>
+    <!-- WC IV right (blue): below right diag, FCD>=225 -->
+    <polygon id="fill_iv_r"  points="515,185 770,260 770,460 515,460" fill="rgba(60,130,210,0.13)"/>
+
+    <!-- Grid lines -->
+    <g stroke="#e0e0e0" stroke-width="0.7">
+      <!-- vertical every 20 days: 60,80,100,...,320 -->
+      <line x1="114.3" y1="60" x2="114.3" y2="460"/>
+      <line x1="162.9" y1="60" x2="162.9" y2="460"/>
+      <line x1="211.4" y1="60" x2="211.4" y2="460"/>
+      <line x1="260.0" y1="60" x2="260.0" y2="460"/>
+      <line x1="308.6" y1="60" x2="308.6" y2="460"/>
+      <line x1="357.1" y1="60" x2="357.1" y2="460"/>
+      <line x1="405.7" y1="60" x2="405.7" y2="460"/>
+      <line x1="454.3" y1="60" x2="454.3" y2="460"/>
+      <line x1="502.9" y1="60" x2="502.9" y2="460"/>
+      <line x1="551.4" y1="60" x2="551.4" y2="460"/>
+      <line x1="600.0" y1="60" x2="600.0" y2="460"/>
+      <line x1="648.6" y1="60" x2="648.6" y2="460"/>
+      <line x1="697.1" y1="60" x2="697.1" y2="460"/>
+      <line x1="745.7" y1="60" x2="745.7" y2="460"/>
+      <!-- horizontal every 50px = 10cm -->
+      <line x1="90" y1="110" x2="770" y2="110"/><line x1="90" y1="160" x2="770" y2="160"/>
+      <line x1="90" y1="210" x2="770" y2="210"/><line x1="90" y1="260" x2="770" y2="260"/>
+      <line x1="90" y1="310" x2="770" y2="310"/><line x1="90" y1="360" x2="770" y2="360"/>
+      <line x1="90" y1="410" x2="770" y2="410"/>
+    </g>
+
+    <!-- Boundary lines -->
+    <!-- Horizontal cultivation threshold 35cm -->
+    <line x1="90" y1="235" x2="515" y2="235" stroke="#555" stroke-width="1.5" stroke-dasharray="6,3"/>
+    <!-- Vertical FCD=225 threshold (x=515) -->
+    <line x1="515" y1="60" x2="515" y2="460" stroke="#555" stroke-width="1.5" stroke-dasharray="6,3"/>
+    <!-- Curved join (quadratic bezier) - meets right diag at (515,185) -->
+    <path d="M430,235 Q490,235 515,175" fill="none" stroke="#555" stroke-width="1.5"/>
+
+    <!-- III/IV boundary: depth = 0.2727*FCD - 0.4545
+         Clipped to start at cultivation threshold depth=35 (FCD=130, x=284.3, y=235) → (685,460) -->
+    <line x1="284.3" y1="235" x2="685" y2="460" stroke="#111" stroke-width="2.5"/>
+    <!-- II/III boundary: depth = 0.2857*FCD + 25.713  → SVG (90,260)→(430,460) -->
+    <line x1="90" y1="260" x2="430" y2="460" stroke="#111" stroke-width="2.5"/>
+    <!-- Right diagonal: WC IV/V  FCD 225→330, depth 25→40 → SVG (515,185)→(770,260) -->
+    <line x1="515" y1="185" x2="770" y2="260" stroke="#111" stroke-width="2.5"/>
+
+    <!-- Cultivation annotation -->
+    <line x1="308" y1="192" x2="308" y2="228" stroke="#444" stroke-width="1"
+          marker-end="url(#arr)"/>
+    <text x="308" y="182" font-size="8.5" fill="#444" text-anchor="middle">Assumed depth to which a slowly permeable</text>
+    <text x="308" y="193" font-size="8.5" fill="#444" text-anchor="middle">layer may be removed by cultivation</text>
+
+    <defs>
+      <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#444"/>
+      </marker>
+    </defs>
+
+    <!-- WC labels - positioned to match reference image -->
+    <!-- WC II: bottom-left, below the II/III line (lower-left corner) -->
+    <text x="130" y="400" font-size="20" font-weight="bold" font-style="italic" fill="#b03030" opacity="0.7">II</text>
+    <!-- WC III: centre band between the two diagonal lines ~FCD=160, mid-depth -->
+    <text x="345" y="352" font-size="20" font-weight="bold" font-style="italic" fill="#9a6010" opacity="0.7">III</text>
+    <!-- WC IV: right half, large region below right diag and right of FCD=225 -->
+    <text x="600" y="340" font-size="20" font-weight="bold" font-style="italic" fill="#2060a0" opacity="0.7">IV</text>
+    <!-- WC V: top-right above right diagonal -->
+    <text x="660" y="120" font-size="20" font-weight="bold" font-style="italic" fill="#207040" opacity="0.7">V</text>
+    <text x="220" y="148" font-size="10" fill="#6030a0" text-anchor="middle" opacity="0.85">Above Cultivation</text>
+    <text x="220" y="160" font-size="10" fill="#6030a0" text-anchor="middle" opacity="0.85">Threshold</text>
+
+    <!-- ── DYNAMIC ELEMENTS (updated by JS) ── -->
+
+    <!-- FCD vertical line -->
+    <line id="fcdLine" x1="150" y1="60" x2="150" y2="460"
+          stroke="#e63946" stroke-width="2" stroke-dasharray="8,4" opacity="0"/>
+
+    <!-- Depth horizontal line -->
+    <line id="depthLine" x1="90" y1="310" x2="770" y2="310"
+          stroke="#e63946" stroke-width="2" stroke-dasharray="8,4" opacity="0"/>
+
+    <!-- Intersection dot -->
+    <circle id="dot" cx="150" cy="310" r="6"
+            fill="#e63946" stroke="white" stroke-width="2" opacity="0"/>
+
+    <!-- FCD label on x axis -->
+    <rect id="fcdLabelBg" x="130" y="463" width="40" height="16" rx="3" fill="#e63946" opacity="0"/>
+    <text id="fcdLabel" x="150" y="475" font-size="11" font-weight="bold"
+          fill="white" text-anchor="middle" opacity="0">150</text>
+
+    <!-- Depth label on y axis -->
+    <rect id="depthLabelBg" x="46" y="302" width="38" height="16" rx="3" fill="#e63946" opacity="0"/>
+    <text id="depthLabel" x="65" y="314" font-size="11" font-weight="bold"
+          fill="white" text-anchor="middle" opacity="0">50</text>
+
+    <!-- Axes -->
+    <g font-size="11" text-anchor="middle" fill="#444">
+      <line x1="114.3" y1="460" x2="114.3" y2="466" stroke="#555" stroke-width="1.5"/><text x="114.3" y="478">60</text>
+      <line x1="162.9" y1="460" x2="162.9" y2="466" stroke="#555" stroke-width="1.5"/><text x="162.9" y="478">80</text>
+      <line x1="211.4" y1="460" x2="211.4" y2="466" stroke="#555" stroke-width="1.5"/><text x="211.4" y="478">100</text>
+      <line x1="260.0" y1="460" x2="260.0" y2="466" stroke="#555" stroke-width="1.5"/><text x="260.0" y="478">120</text>
+      <line x1="308.6" y1="460" x2="308.6" y2="466" stroke="#555" stroke-width="1.5"/><text x="308.6" y="478">140</text>
+      <line x1="357.1" y1="460" x2="357.1" y2="466" stroke="#555" stroke-width="1.5"/><text x="357.1" y="478">160</text>
+      <line x1="405.7" y1="460" x2="405.7" y2="466" stroke="#555" stroke-width="1.5"/><text x="405.7" y="478">180</text>
+      <line x1="454.3" y1="460" x2="454.3" y2="466" stroke="#555" stroke-width="1.5"/><text x="454.3" y="478">200</text>
+      <line x1="502.9" y1="460" x2="502.9" y2="466" stroke="#555" stroke-width="1.5"/><text x="502.9" y="478">220</text>
+      <line x1="551.4" y1="460" x2="551.4" y2="466" stroke="#555" stroke-width="1.5"/><text x="551.4" y="478">240</text>
+      <line x1="600.0" y1="460" x2="600.0" y2="466" stroke="#555" stroke-width="1.5"/><text x="600.0" y="478">260</text>
+      <line x1="648.6" y1="460" x2="648.6" y2="466" stroke="#555" stroke-width="1.5"/><text x="648.6" y="478">280</text>
+      <line x1="697.1" y1="460" x2="697.1" y2="466" stroke="#555" stroke-width="1.5"/><text x="697.1" y="478">300</text>
+      <line x1="745.7" y1="460" x2="745.7" y2="466" stroke="#555" stroke-width="1.5"/><text x="745.7" y="478">320</text>
+    </g>
+    <text x="430" y="508" font-size="13" font-weight="bold" text-anchor="middle" fill="#222">FCD (days)</text>
+
+    <g font-size="11" text-anchor="end" fill="#444">
+      <line x1="90" y1="60"  x2="84" y2="60"  stroke="#555" stroke-width="1.5"/><text x="82" y="64">0</text>
+      <line x1="90" y1="110" x2="84" y2="110" stroke="#555" stroke-width="1.5"/><text x="82" y="114">10</text>
+      <line x1="90" y1="160" x2="84" y2="160" stroke="#555" stroke-width="1.5"/><text x="82" y="164">20</text>
+      <line x1="90" y1="210" x2="84" y2="210" stroke="#555" stroke-width="1.5"/><text x="82" y="214">30</text>
+      <line x1="90" y1="235" x2="84" y2="235" stroke="#555" stroke-width="1.5"/><text x="82" y="239">35</text>
+      <line x1="90" y1="260" x2="84" y2="260" stroke="#555" stroke-width="1.5"/><text x="82" y="264">40</text>
+      <line x1="90" y1="310" x2="84" y2="310" stroke="#555" stroke-width="1.5"/><text x="82" y="314">50</text>
+      <line x1="90" y1="360" x2="84" y2="360" stroke="#555" stroke-width="1.5"/><text x="82" y="364">60</text>
+      <line x1="90" y1="410" x2="84" y2="410" stroke="#555" stroke-width="1.5"/><text x="82" y="414">70</text>
+      <line x1="90" y1="460" x2="84" y2="460" stroke="#555" stroke-width="1.5"/><text x="82" y="464">80</text>
+    </g>
+    <text transform="translate(14,260) rotate(-90)" font-size="13" font-weight="bold"
+          text-anchor="middle" fill="#222">Depth to slowly permeable layer (cm)</text>
+
+    <!-- Plot border on top -->
+    <rect x="90" y="60" width="680" height="400" fill="none" stroke="#555" stroke-width="1.5"/>
+
+  </svg>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:rgba(150,100,200,0.35)"></div>Above Threshold</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:rgba(200,80,80,0.35)"></div>WC II</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:rgba(220,150,40,0.35)"></div>WC III</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:rgba(60,130,210,0.35)"></div>WC IV</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:rgba(60,170,80,0.35)"></div>WC V</div>
+    <div class="legend-item"><div style="width:18px;height:2px;background:#e63946;border-top:2px dashed #e63946"></div>Your values</div>
+  </div>
+
+  <p class="hint">Adjust the sliders or type values directly — the chart updates in real time.</p>
+</div>
+
+<script>
+  // ── coordinate helpers ──────────────────────────────────────────
+  // x = 90 + (FCD - 50) * (680/280)
+  // y = 60 + depth * (400/80) = 60 + depth * 5
+  const toX = fcd   => 90 + (fcd - 50) * (680 / 280);
+  const toY = depth => 60 + depth * 5;
+
+  // ── boundary functions ──────────────────────────────────────────
+  //   III/IV boundary : depth = 0.2727272727 * FCD - 0.4545454545  (upper line)
+  //   II/III boundary : depth = 0.2857142857 * FCD + 25.712857     (lower line)
+  //   Right diagonal IV/V : FCD 225→330, depth 25→40
+  const iiiIvDepth  = fcd => 0.2727272727 * fcd - 0.4545454545;
+  const iiIiiDepth  = fcd => 0.2857142857 * fcd + 25.712857;
+  const rightDiagDepth = fcd => 25 + (fcd - 225) * (15 / 105);
+
+  const ZONE_COLORS = {
+    'Above Cultivation Threshold': { bg: '#f3ecfd', border: '#9b59b6', text: '#6c3483' },
+    'WC II':   { bg: '#fdecea', border: '#c0392b', text: '#922b21' },
+    'WC III':  { bg: '#fef9ec', border: '#d4a017', text: '#9a7d0a' },
+    'WC IV':   { bg: '#eaf3fd', border: '#2980b9', text: '#1a5276' },
+    'WC V':    { bg: '#eafaf1', border: '#27ae60', text: '#1e8449' },
+  };
+
+  const ZONE_DESC = {
+    'Above Cultivation Threshold': 'Layer is within assumed cultivation depth — may be removed.',
+    'WC II':  'Moderately well drained.',
+    'WC III': 'Imperfectly drained.',
+    'WC IV':  'Poorly drained.',
+    'WC V':   'Very poorly drained',
+  };
+
+  function classifyZone(fcd, depth) {
+    // Check FCD>=225 first so WC V is not masked by the depth<35 threshold check
+    if (fcd >= 225) {
+      if (depth < rightDiagDepth(fcd)) return 'WC V';
+      return depth < 35 ? 'Above Cultivation Threshold' : 'WC IV';
+    }
+    if (depth < 35) return 'Above Cultivation Threshold';
+    // FCD < 225, depth >= 35
+    // II/III boundary (lower line): depth = 0.2857*FCD + 25.713
+    // III/IV boundary (upper line): depth = 0.2727*FCD - 0.4545, only valid at depth>=35
+    //   → only kicks in for FCD >= 130 (where iiiIvDepth(fcd) >= 35)
+    // Below II/III → WC II; between lines → WC III; above III/IV (or FCD<130) → WC IV
+    if (depth >= iiIiiDepth(fcd)) return 'WC II';
+    if (fcd >= 130 && depth >= iiiIvDepth(fcd)) return 'WC III';
+    return 'WC IV';
+  }
+
+  function update() {
+    const fcd   = parseFloat(document.getElementById('fcdInput').value)   || 150;
+    const depth = parseFloat(document.getElementById('depthInput').value) || 50;
+
+    const fcdC   = Math.min(Math.max(fcd,   60), 330);
+    const depthC = Math.min(Math.max(depth,  0),  80);
+
+    const svgX = toX(fcdC);
+    const svgY = toY(depthC);
+
+    // update FCD vertical line
+    const fl = document.getElementById('fcdLine');
+    fl.setAttribute('x1', svgX); fl.setAttribute('x2', svgX);
+    fl.setAttribute('opacity', '1');
+
+    // update depth horizontal line
+    const dl = document.getElementById('depthLine');
+    dl.setAttribute('y1', svgY); dl.setAttribute('y2', svgY);
+    dl.setAttribute('opacity', '1');
+
+    // intersection dot
+    const dot = document.getElementById('dot');
+    dot.setAttribute('cx', svgX); dot.setAttribute('cy', svgY);
+    dot.setAttribute('opacity', '1');
+
+    // FCD axis label
+    const flb = document.getElementById('fcdLabelBg');
+    const flt = document.getElementById('fcdLabel');
+    const lblW = Math.max(40, String(Math.round(fcdC)).length * 8 + 12);
+    flb.setAttribute('x', svgX - lblW/2); flb.setAttribute('width', lblW);
+    flb.setAttribute('opacity', '1');
+    flt.setAttribute('x', svgX); flt.textContent = Math.round(fcdC);
+    flt.setAttribute('opacity', '1');
+
+    // Depth axis label
+    const dlb = document.getElementById('depthLabelBg');
+    const dlt = document.getElementById('depthLabel');
+    dlb.setAttribute('y', svgY - 8); dlb.setAttribute('opacity', '1');
+    dlt.setAttribute('y', svgY + 4); dlt.textContent = Math.round(depthC);
+    dlt.setAttribute('opacity', '1');
+
+    // zone result
+    const zone = classifyZone(fcdC, depthC);
+    const col  = ZONE_COLORS[zone];
+    const badge = document.getElementById('resultBadge');
+    badge.textContent = zone;
+    badge.style.background   = col.bg;
+    badge.style.borderColor  = col.border;
+    badge.style.color        = col.text;
+    badge.title = ZONE_DESC[zone];
+  }
+
+  // sync number ↔ slider
+  function syncFcd(val) {
+    document.getElementById('fcdInput').value   = val;
+    document.getElementById('fcdSlider').value  = val;
+    update();
+  }
+  function syncDepth(val) {
+    document.getElementById('depthInput').value  = val;
+    document.getElementById('depthSlider').value = val;
+    update();
+  }
+
+  document.getElementById('fcdInput').addEventListener('input',    e => syncFcd(e.target.value));
+  document.getElementById('fcdSlider').addEventListener('input',   e => syncFcd(e.target.value));
+  document.getElementById('depthInput').addEventListener('input',  e => syncDepth(e.target.value));
+  document.getElementById('depthSlider').addEventListener('input', e => syncDepth(e.target.value));
+
+  // click on chart to place point
+  document.getElementById('chart').addEventListener('click', function(e) {
+    const rect = this.getBoundingClientRect();
+    const scaleX = 800 / rect.width;
+    const scaleY = 520 / rect.height;
+    const svgX = (e.clientX - rect.left) * scaleX;
+    const svgY = (e.clientY - rect.top)  * scaleY;
+    if (svgX < 90 || svgX > 770 || svgY < 60 || svgY > 460) return;
+    const fcd   = Math.round(50  + (svgX - 90) * (280 / 680));
+    const depth = Math.round((svgY - 60) / 5);
+    syncFcd(fcd);
+    syncDepth(depth);
+  });
+
+  update();
+</script>
+</body>
+</html>
