@@ -189,9 +189,9 @@
          Shape: (284.3,235)→(515,235)→(515,364.5)→(685,460)→(284.3,235) — triangle-ish
          But also need right part from (515,364.5) down to (515,460) and along bottom
          Full left IV: (284.3,235)→(515,235)→(515,460)→(685,460) back along III/IV to (284.3,235) -->
-    <polygon id="fill_iv_l"  points="284.3,235 515,235 515,460 685,460" fill="rgba(60,130,210,0.13)"/>
+    <polygon id="fill_iv_l"  points="284.3,235 515,235 515,364.5" fill="rgba(60,130,210,0.13)"/>
     <!-- WC IV right (blue): below right diag, FCD>=225 -->
-    <polygon id="fill_iv_r"  points="515,185 770,260 770,460 515,460" fill="rgba(60,130,210,0.13)"/>
+    <polygon id="fill_iv_r"  points="515,185 770,260 770,460 685,460 515,364.5" fill="rgba(60,130,210,0.13)"/>
 
     <!-- Grid lines -->
     <g stroke="#e0e0e0" stroke-width="0.7">
@@ -221,7 +221,7 @@
     <!-- Horizontal cultivation threshold 35cm -->
     <line x1="90" y1="235" x2="515" y2="235" stroke="#555" stroke-width="1.5" stroke-dasharray="6,3"/>
     <!-- Vertical FCD=225 threshold (x=515) -->
-    <line x1="515" y1="60" x2="515" y2="460" stroke="#555" stroke-width="1.5" stroke-dasharray="6,3"/>
+    <line x1="515" y1="60" x2="515" y2="235" stroke="#555" stroke-width="1.5" stroke-dasharray="6,3"/>
     <!-- Curved join (quadratic bezier) - meets right diag at (515,185) -->
     <path d="M430,235 Q490,235 515,175" fill="none" stroke="#555" stroke-width="1.5"/>
 
@@ -368,16 +368,17 @@
     // Check FCD>=225 first so WC V is not masked by the depth<35 threshold check
     if (fcd >= 225) {
       if (depth < rightDiagDepth(fcd)) return 'WC V';
-      return depth < 35 ? 'Above Cultivation Threshold' : 'WC IV';
+      // Above Cultivation Threshold zone does not extend past FCD=225
+      // III/IV boundary still applies for FCD 225–295 (line exits chart at FCD=295, depth=80)
+      if (depth >= iiiIvDepth(fcd)) return 'WC III';
+      return 'WC IV';
     }
     if (depth < 35) return 'Above Cultivation Threshold';
     // FCD < 225, depth >= 35
-    // II/III boundary (lower line): depth = 0.2857*FCD + 25.713
-    // III/IV boundary (upper line): depth = 0.2727*FCD - 0.4545, only valid at depth>=35
-    //   → only kicks in for FCD >= 130 (where iiiIvDepth(fcd) >= 35)
-    // Below II/III → WC II; between lines → WC III; above III/IV (or FCD<130) → WC IV
+    // Below II/III → WC II; between II/III and III/IV → WC III; above III/IV → WC IV
+    // iiiIvDepth is < 35 for FCD < 130, so depth >= 35 always satisfies it for FCD < 130
     if (depth >= iiIiiDepth(fcd)) return 'WC II';
-    if (fcd >= 130 && depth >= iiiIvDepth(fcd)) return 'WC III';
+    if (depth >= iiiIvDepth(fcd)) return 'WC III';
     return 'WC IV';
   }
 
